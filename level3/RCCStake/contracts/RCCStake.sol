@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -82,7 +82,7 @@ contract RCCStake is
     uint256 poolWeight;
     uint256 lastRewardBlock;
     uint256 accRCCPerST;
-    uint256 stTokenAMount;
+    uint256 stTokenAmount;
     uint256 minDepositAmount;
     uint256 unstakeLockedBlocks;
   }
@@ -175,8 +175,7 @@ contract RCCStake is
   }
 
   /**
-   * set Rcc token address
-   * set basic info when deploying
+   * 初始化，设置角色权限，rcc代币
    */
   function initialize(IERC20 _RCC, uint256 _startBlock, uint256 _endBlock, uint256 _RCCPerBlock) public initializer {
     require(_startBlock <= _endBlock && _RCCPerBlock > 0, "invalid parameters");
@@ -198,8 +197,7 @@ contract RCCStake is
 
   // ************************************** ADMIN FUNCTION **************************************
   /**
-  * set rcc token address
-  * can only be called by admin
+  * 设置rcc代币地址 
   */
   function setRCC(IERC20 _RCC) public onlyRole(ADMIN_ROLE) {
     RCC = _RCC;
@@ -207,8 +205,7 @@ contract RCCStake is
   }
 
   /**
-   * pause withdraw
-   * can only be called by admin
+   * 暂停提现
    */
   function pauseWithdraw() public onlyRole(ADMIN_ROLE) {
     require(!withdrawPaused, "already paused");
@@ -217,8 +214,7 @@ contract RCCStake is
   }
 
   /**
-   * unpause withdraw
-   * can only be called by admin
+   * 取消暂停提现
    */
   function unpauseWithdraw() public onlyRole(ADMIN_ROLE) {
     require(withdrawPaused, "already unpaused");
@@ -227,8 +223,7 @@ contract RCCStake is
   }
 
   /**
-   * pause claim
-   * can only be called by admin
+   * 暂停索取？
    */
   function pauseClaim() public onlyRole(ADMIN_ROLE) {
     require(!claimPaused, "already paused");
@@ -237,8 +232,7 @@ contract RCCStake is
   }
 
   /**
-   * update staking start block
-   * can only be called by admin
+   * 设置开始区块
    */
   function setStartBlock(uint256 _startBlock) public onlyRole(ADMIN_ROLE) {
     require(_startBlock <= endBlock, "start block must be smaller than end block");
@@ -247,8 +241,7 @@ contract RCCStake is
   }
 
   /**
-   * update staking end block
-   * can only be called by admin
+   * 设置结束区块
    */
   function setEndBlock(uint256 _endBlock) public onlyRole(ADMIN_ROLE) {
     require(startBlock <= _endBlock, "start block must be smaller than end block");
@@ -257,8 +250,7 @@ contract RCCStake is
   }
 
   /**
-   * update reward per block
-   * can only be called by admin
+   * 设置每个区块的rcc奖励数量
    */
   function setRCCPerBlock(uint256 _RCCPerBlock) public onlyRole(ADMIN_ROLE) {
     require(_RCCPerBlock > 0, "invalid reward");
@@ -267,8 +259,7 @@ contract RCCStake is
   }
 
   /**
-   * add a new staking to pool
-   * can only be called by admin
+   * 添加质押池
    */
   function addPool(
     address _stTokenAddress,
@@ -277,6 +268,7 @@ contract RCCStake is
     uint256 _unstakeLockedBlocks,
     bool _withUpdate
   ) public onlyRole(ADMIN_ROLE) {
+    // 合约的第一个质押池必须是合约的本地代币
     // Default the first pool to be nativeCurrency pool, so the first pool must be added with stTokenAddress = address(0x0)
     if (pools.length > 0) {
       require(_stTokenAddress != address(0), "invalid staking token address");
@@ -308,10 +300,9 @@ contract RCCStake is
   }
 
   /**
-   * Update the given pool's info
-   * Can only be called by the admin.
+   * 更新质押池的信息，包括最小存入数量，未质押锁定区块？
    */
-  function updatePool(uint256 _pid, uint256 _minDepositAmount, uint256 _unstakeLockedBlocks) public onlyRole(ADMIN_ROLE) {
+  function updatePoolInfo(uint256 _pid, uint256 _minDepositAmount, uint256 _unstakeLockedBlocks) public onlyRole(ADMIN_ROLE) {
     pools[_pid].minDepositAmount = _minDepositAmount;
     pools[_pid].unstakeLockedBlocks = _unstakeLockedBlocks;
 
@@ -319,8 +310,7 @@ contract RCCStake is
   }
 
   /**
-   * Update the given pool's weight
-   * Can only be called by the admin.
+   * 设置质押池的权重
    */
   function setPoolWeight(uint256 _pid, uint256 _poolWeight, bool _withUpdate) public onlyRole(ADMIN_ROLE) checkPid(_pid) {
     require(_poolWeight > 0, "invalid pool weight");
@@ -335,14 +325,14 @@ contract RCCStake is
   }
 
   /**
-   * Get the length/amount of pool
+   * 获取质押池的数量
    */
   function poolLength() external view returns(uint256) {
     return pools.length;
   }
 
   /**
-   * @notice Return reward multiplier over given _from to _to block. [_from, _to)
+   * @notice 获取form到to的区块长度，然后和每个区块奖励数量乘积，获取总的奖励
    *
    * @param _from    From block number (included)
    * @param _to      To block number (exluded)
@@ -362,14 +352,14 @@ contract RCCStake is
   }
 
   /**
-   * Get pending RCC amount of user in pool
+   * 根据区块号，获取待领取rcc数量
    */
   function pendingRCC(uint256 _pid, address _user) external view checkPid(_pid) returns (uint256) {
     return pendingRCCByBlockNumber(_pid, _user, block.number);
   }
 
   /**
-   * Get pending RCC amount of user by block number in pool
+   * 根据区块号，获取待领取rcc数量
    */
   function pendingRCCByBlockNumber(uint256 _pid, address _user, uint256 _blockNumber) public view checkPid(_pid) returns (uint256) {
     Pool storage pool_ = pools[_pid];
@@ -380,21 +370,21 @@ contract RCCStake is
     if (_blockNumber > pool_.lastRewardBlock && stSupply != 0) {
       uint256 multiplier = getMultiplier(pool_.lastRewardBlock, _blockNumber);
       uint256 rccForPool = multiplier * pool_.poolWeight / totalPoolWeight;
-      accRCCPerST = accRCCPerST + rccForPool * (1 ether) / stSupply;
+      accRCCPerST = accRCCPerST + rccForPool * (1 ether) / stSupply; // 1 ether调整精度，单位变成wei
     }
 
     return user_.stAmount * accRCCPerST / (1 ether) - user_.finishedRCC + user_.pendingRCC;
   }
 
   /**
-   * Get the staking amount of user
+   * 获取用户质押数量
    */
   function stakingBalance(uint256 _pid, address _user) external checkPid(_pid) view returns(uint256) {
     return user[_pid][_user].stAmount;
   }
 
   /**
-   * Get the withdraw amount info, including the locked unstake amount and the unlocked unstake amount
+   * 获取提现的数量
    */
   function withdrawAmount(uint256 _pid, address _user) public view checkPid(_pid) returns(uint256 requestAmount, uint256 pendingWithdrawAmount) {
     User storage user_ = user[_pid][_user];
@@ -411,12 +401,12 @@ contract RCCStake is
 
 
   /**
-   * Update reward variables of the given pool to be up-to-date.
+   * 更新质押池信息，最后计算奖励的区块，每个质押的奖励
    */
   function updatePool(uint256 _pid) public checkPid(_pid) {
     Pool storage pool_ = pools[_pid];
 
-    if (block.numnber <= pool_.lastRewardBlock) {
+    if (block.number <= pool_.lastRewardBlock) {
       return;
     }
 
@@ -445,17 +435,17 @@ contract RCCStake is
   }
 
   /**
-   * Update reward variables for all pools. Be careful of gas spending!
+   * 更新所有质押池信息
    */
   function massUpdatePools() public {
-      uint256 length = pools.length;
-      for (uint256 pid = 0; pid < length; pid++) {
-          updatePool(pid);
-      }
+    uint256 length = pools.length;
+    for (uint256 pid = 0; pid < length; pid++) {
+        updatePool(pid);
+    }
   }
 
   /**
-   * Deposit staking ETH for RCC rewards
+   * 存入eth质押池存入eth
    */
   function depositETH() public whenNotPaused() payable {
     Pool storage pool_ = pools[ETH_PID];
@@ -465,190 +455,193 @@ contract RCCStake is
     require(_amount >= pool_.minDepositAmount, "deposit amount is too small");
 
     _deposit(ETH_PID, _amount);
-}
+  }
 
-    /**
-     * Deposit staking token for RCC rewards
-     * Before depositing, user needs approve this contract to be able to spend or transfer their staking tokens
-     * @param _pid       Id of the pool to be deposited to
-     * @param _amount    Amount of staking tokens to be deposited
-     */
-    function deposit(uint256 _pid, uint256 _amount) public whenNotPaused() checkPid(_pid) {
-        require(_pid != 0, "deposit not support ETH staking");
-        Pool storage pool_ = pools[_pid];
-        require(_amount > pool_.minDepositAmount, "deposit amount is too small");
+  /**
+   * 存入代币，在代币的合约地址，从msg.sender转入amount数量的代币到address(this)
+   * @param _pid       Id of the pool to be deposited to
+   * @param _amount    Amount of staking tokens to be deposited
+   */
+  function deposit(uint256 _pid, uint256 _amount) public whenNotPaused() checkPid(_pid) {
+      require(_pid != 0, "deposit not support ETH staking");
+      Pool storage pool_ = pools[_pid];
+      require(_amount > pool_.minDepositAmount, "deposit amount is too small");
 
-        if(_amount > 0) {
-          IERC20(pool_.stTokenAddress).safeTransferFrom(msg.sender, address(this), _amount);
-        }
+      if(_amount > 0) {
+        IERC20(pool_.stTokenAddress).safeTransferFrom(msg.sender, address(this), _amount);
+      }
 
-        _deposit(_pid, _amount);
-    }
+      _deposit(_pid, _amount);
+  }
 
-    /**
-     * Unstake staking tokens
-     * @param _pid       Id of the pool to be withdrawn from
-     * @param _amount    amount of staking tokens to be withdrawn
-     */
-    function unstake(uint256 _pid, uint256 _amount) public whenNotPaused() checkPid(_pid) whenNotWithdrawPaused() {
-        Pool storage pool_ = pools[_pid];
-        User storage user_ = user[_pid][msg.sender];
-
-        require(user_.stAmount >= _amount, "Not enough staking token balance");
-
-        updatePool(_pid);
-
-        uint256 pendingRCC_ = user_.stAmount * pool_.accRCCPerST / (1 ether) - user_.finishedRCC;
-
-        if(pendingRCC_ > 0) {
-            user_.pendingRCC = user_.pendingRCC + pendingRCC_;
-        }
-
-        if(_amount > 0) {
-            user_.stAmount = user_.stAmount - _amount;
-            user_.requests.push(UnstakeRequest({
-                amount: _amount,
-                unlockBlocks: block.number + pool_.unstakeLockedBlocks
-            }));
-        }
-
-        pool_.stTokenAmount = pool_.stTokenAmount - _amount;
-        user_.finishedRCC = user_.stAmount * pool_.accRCCPerST / (1 ether);
-
-        emit RequestUnstake(msg.sender, _pid, _amount);
-    }
-
-    /**
-     * @notice Withdraw the unlock unstake amount
-     *
-     * @param _pid       Id of the pool to be withdrawn from
-     */
-    function withdraw(uint256 _pid) public whenNotPaused() checkPid(_pid) whenNotWithdrawPaused() {
+  /**
+   * 解除质押
+   * @param _pid       Id of the pool to be withdrawn from
+   * @param _amount    amount of staking tokens to be withdrawn
+   */
+  function unstake(uint256 _pid, uint256 _amount) public whenNotPaused() checkPid(_pid) whenNotWithdrawPaused() {
       Pool storage pool_ = pools[_pid];
       User storage user_ = user[_pid][msg.sender];
 
-      uint256 pendingWithdraw_;
-      uint256 popNum_;
-      for (uint256 i = 0; i < user_.requests.length; i++) {
-        if (user_.requests[i].unlockBlocks > block.number) {
-          break;
-        }
-        pendingWithdraw_ = pendingWithdraw_ + user_.requests[i].amount;
-        popNum_++;
-      }
-
-      for (uint256 i = 0; i < user_.requests.length - popNum_; i++) {
-        user_.requests[i] = user_.requests[i + popNum_];
-      }
-
-      for (uint256 i = 0; i < popNum_; i++) {
-        user_.requests.pop();
-      }
-
-      if (pendingWithdraw_ > 0) {
-        if (pool_.stTokenAddress == address(0x0)) {
-          _safeETHTransfer(msg.sender, pendingWithdraw_);
-        } else {
-          IERC20(pool_.stTokenAddress).safeTransfer(msg.sender, pendingWithdraw_);
-        }
-      }
-
-      emit Withdraw(msg.sender, _pid, pendingWithdraw_, block.number);
-    }
-
-    /**
-     * Claim RCC tokens reward
-     * @param _pid       Id of the pool to be claimed from
-     */
-    function claim(uint256 _pid) public whenNotPaused() checkPid(_pid) whenNotClaimPaused() {
-      Pool storage pool_ = pools[_pid];
-      User storage user_ = user[_pid][msg.sender];
+      require(user_.stAmount >= _amount, "Not enough staking token balance");
 
       updatePool(_pid);
 
-      uint256 pendingRCC_ = user_.stAmount * pool_.accRCCPerST / (1 ether) - user_.finishedRCC + user_.pendingRCC;
+      uint256 pendingRCC_ = user_.stAmount * pool_.accRCCPerST / (1 ether) - user_.finishedRCC;
 
       if(pendingRCC_ > 0) {
-          user_.pendingRCC = 0;
-          _safeRCCTransfer(msg.sender, pendingRCC_);
+          user_.pendingRCC = user_.pendingRCC + pendingRCC_;
       }
 
+      if(_amount > 0) {
+          user_.stAmount = user_.stAmount - _amount;
+          user_.requests.push(UnstakeRequest({
+              amount: _amount,
+              unlockBlocks: block.number + pool_.unstakeLockedBlocks
+          }));
+      }
+
+      pool_.stTokenAmount = pool_.stTokenAmount - _amount;
       user_.finishedRCC = user_.stAmount * pool_.accRCCPerST / (1 ether);
 
-      emit Claim(msg.sender, _pid, pendingRCC_);
+      emit RequestUnstake(msg.sender, _pid, _amount);
+  }
+
+  /**
+   * @notice 提取解除锁定的，解除质押的代币
+   *
+   * @param _pid       Id of the pool to be withdrawn from
+   */
+  function withdraw(uint256 _pid) public whenNotPaused() checkPid(_pid) whenNotWithdrawPaused() {
+    Pool storage pool_ = pools[_pid];
+    User storage user_ = user[_pid][msg.sender];
+
+    uint256 pendingWithdraw_;
+    uint256 popNum_;
+    for (uint256 i = 0; i < user_.requests.length; i++) {
+      // 区块未解锁
+      if (user_.requests[i].unlockBlocks > block.number) {
+        // break; 
+        // 应该用continue
+        continue;
+      }
+      pendingWithdraw_ = pendingWithdraw_ + user_.requests[i].amount;
+      popNum_++;
     }
 
-    // ************************************** INTERNAL FUNCTION **************************************
-
-    /**
-     * Deposit staking token for RCC rewards
-     * @param _pid       Id of the pool to be deposited to
-     * @param _amount    Amount of staking tokens to be deposited
-     */
-    function _deposit(uint256 _pid, uint256 _amount) internal {
-      Pool storage pool_ = pools[_pid];
-      User storage user_ = user[_pid][msg.sender];
-
-      updatePool(_pid);
-
-      if (user_.stAmount > 0) {
-        (bool success1, uint256 accST) = user_.stAmount.tryMul(pool_.accRCCPerST);
-        require(success1, "user stAmount mul accRCCPerST overflow");
-        (success1, accST) = accST.tryDiv(1 ether);
-        require(success1, "accST div 1 ether overflow");
-        
-        (bool success2, uint256 pendingRCC_) = accST.trySub(user_.finishedRCC);
-        require(success2, "accST sub finishedRCC overflow");
-
-        if(pendingRCC_ > 0) {
-          (bool success3, uint256 _pendingRCC) = user_.pendingRCC.tryAdd(pendingRCC_);
-          require(success3, "user pendingRCC overflow");
-          user_.pendingRCC = _pendingRCC;
-        }
-      }
-
-      if (_amount > 0) {
-        (bool success4, uint256 stAmount) = user_.stAmount.tryAdd(_amount);
-        require(success4, "user stAmount overflow");
-        user_.stAmount = stAmount;
-      }
-
-      (bool success5, uint256 stTokenAmount) = pool_.stTokenAmount.tryAdd(_amount);
-      require(success5, "pool stTokenAmount overflow");
-      pool_.stTokenAmount = stTokenAmount;
-
-      (bool success6, uint256 finishedRCC) = user_.stAmount.tryMul(pool_.accRCCPerST);
-      require(success6, "user stAmount mul accRCCPerST overflow");
-
-      (success6, finishedRCC) = finishedRCC.tryDiv(1 ether);
-      require(success6, "finishedRCC div 1 ether overflow");
-
-      user_.finishedRCC = finishedRCC;
-
-      emit Deposit(msg.sender, _pid, _amount);
+    // 这里不对，不能保证后面的都是未解锁的 
+    for (uint256 i = 0; i < user_.requests.length - popNum_; i++) {
+      user_.requests[i] = user_.requests[i + popNum_];
     }
 
-    /**
-     * Safe RCC transfer function, just in case if rounding error causes pool to not have enough RCCs
-     * @param _to        Address to get transferred RCCs
-     * @param _amount    Amount of RCC to be transferred
-     */
-    function _safeRCCTransfer(address _to, uint256 _amount) internal {
-      uint256 RCCBal = RCC.balanceOf(address(this));
+    for (uint256 i = 0; i < popNum_; i++) {
+      user_.requests.pop();
+    }
 
-      if (_amount > RCCBal) {
-        RCC.transfer(_to, RCCBal);
+    if (pendingWithdraw_ > 0) {
+      if (pool_.stTokenAddress == address(0x0)) {
+        _safeETHTransfer(msg.sender, pendingWithdraw_);
       } else {
-        RCC.transfer(_to, _amount);
+        IERC20(pool_.stTokenAddress).safeTransfer(msg.sender, pendingWithdraw_);
       }
     }
 
-    /**
-     * Safe ETH transfer function
-     * @param _to        Address to get transferred ETH
-     * @param _amount    Amount of ETH to be transferred
-     */
-    function _safeETHTransfer(address _to, uint256 _amount) internal {
+    emit Withdraw(msg.sender, _pid, pendingWithdraw_, block.number);
+  }
+
+  /**
+   * 提取rcc token奖励
+   * @param _pid       Id of the pool to be claimed from
+   */
+  function claim(uint256 _pid) public whenNotPaused() checkPid(_pid) whenNotClaimPaused() {
+    Pool storage pool_ = pools[_pid];
+    User storage user_ = user[_pid][msg.sender];
+
+    updatePool(_pid);
+
+    uint256 pendingRCC_ = user_.stAmount * pool_.accRCCPerST / (1 ether) - user_.finishedRCC + user_.pendingRCC;
+
+    if(pendingRCC_ > 0) {
+        user_.pendingRCC = 0;
+        _safeRCCTransfer(msg.sender, pendingRCC_);
+    }
+
+    user_.finishedRCC = user_.stAmount * pool_.accRCCPerST / (1 ether);
+
+    emit Claim(msg.sender, _pid, pendingRCC_);
+  }
+
+  // ************************************** INTERNAL FUNCTION **************************************
+
+  /**
+   * 存入代币获取rcc奖励
+   * @param _pid       Id of the pool to be deposited to
+   * @param _amount    Amount of staking tokens to be deposited
+   */
+  function _deposit(uint256 _pid, uint256 _amount) internal {
+    Pool storage pool_ = pools[_pid];
+    User storage user_ = user[_pid][msg.sender];
+
+    updatePool(_pid);
+
+    if (user_.stAmount > 0) {
+      (bool success1, uint256 accST) = user_.stAmount.tryMul(pool_.accRCCPerST);
+      require(success1, "user stAmount mul accRCCPerST overflow");
+      (success1, accST) = accST.tryDiv(1 ether);
+      require(success1, "accST div 1 ether overflow");
+      
+      (bool success2, uint256 pendingRCC_) = accST.trySub(user_.finishedRCC);
+      require(success2, "accST sub finishedRCC overflow");
+
+      if(pendingRCC_ > 0) {
+        (bool success3, uint256 _pendingRCC) = user_.pendingRCC.tryAdd(pendingRCC_);
+        require(success3, "user pendingRCC overflow");
+        user_.pendingRCC = _pendingRCC;
+      }
+    }
+
+    if (_amount > 0) {
+      (bool success4, uint256 stAmount) = user_.stAmount.tryAdd(_amount);
+      require(success4, "user stAmount overflow");
+      user_.stAmount = stAmount;
+    }
+
+    (bool success5, uint256 stTokenAmount) = pool_.stTokenAmount.tryAdd(_amount);
+    require(success5, "pool stTokenAmount overflow");
+    pool_.stTokenAmount = stTokenAmount;
+
+    (bool success6, uint256 finishedRCC) = user_.stAmount.tryMul(pool_.accRCCPerST);
+    require(success6, "user stAmount mul accRCCPerST overflow");
+
+    (success6, finishedRCC) = finishedRCC.tryDiv(1 ether);
+    require(success6, "finishedRCC div 1 ether overflow");
+
+    user_.finishedRCC = finishedRCC;
+
+    emit Deposit(msg.sender, _pid, _amount);
+  }
+
+  /**
+   * 提取rcc奖励
+   * @param _to        Address to get transferred RCCs
+   * @param _amount    Amount of RCC to be transferred
+   */
+  function _safeRCCTransfer(address _to, uint256 _amount) internal {
+    uint256 RCCBal = RCC.balanceOf(address(this));
+
+    if (_amount > RCCBal) {
+      RCC.transfer(_to, RCCBal);
+    } else {
+      RCC.transfer(_to, _amount);
+    }
+  }
+
+  /**
+   * 提取eth
+   * @param _to        Address to get transferred ETH
+   * @param _amount    Amount of ETH to be transferred
+   */
+  function _safeETHTransfer(address _to, uint256 _amount) internal {
       (bool success, bytes memory data) = address(_to).call{
           value: _amount
       }("");
