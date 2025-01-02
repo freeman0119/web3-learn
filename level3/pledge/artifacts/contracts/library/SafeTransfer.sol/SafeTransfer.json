@@ -1,0 +1,36 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "SafeTransfer",
+  "sourceName": "contracts/library/SafeTransfer.sol",
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recieptor",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "Redeem",
+      "type": "event"
+    }
+  ],
+  "bytecode": "0x6080604052348015600f57600080fd5b50603f80601d6000396000f3fe6080604052600080fdfea2646970667358221220b82cb14599b5bb3107276ef83a7122a6699da6874ea391db6896dbee49ed321a64736f6c634300060c0033",
+  "deployedBytecode": "0x6080604052600080fdfea2646970667358221220b82cb14599b5bb3107276ef83a7122a6699da6874ea391db6896dbee49ed321a64736f6c634300060c0033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}
